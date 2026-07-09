@@ -690,69 +690,82 @@ function ScorersView({ tournament }: { tournament: Tournament }) {
 
 function BracketView({ tournament }: { tournament: Tournament }) {
   const standings = useMemo(() => computeStandings(tournament), [tournament]);
-  const [qty, setQty] = useState(4);
+  const total = tournament.matches.length;
+  const done = tournament.matches.filter((m) => m.played).length;
+  const complete = total > 0 && done === total;
 
-  const bracket = useMemo(() => {
-    const seeds = standings.slice(0, qty);
-    if (seeds.length < 2) return [];
-    const rounds: { home: string | null; away: string | null; label: string }[][] = [];
-    const first: { home: string | null; away: string | null; label: string }[] = [];
-    for (let i = 0; i < seeds.length / 2; i++) {
-      const home = seeds[i];
-      const away = seeds[seeds.length - 1 - i];
-      first.push({ home: home ? `${i + 1}º ${home.team.name}` : null, away: away ? `${seeds.length - i}º ${away.team.name}` : null, label: labelFor(seeds.length) });
-    }
-    rounds.push(first);
-    let count = first.length;
-    while (count > 1) {
-      count = Math.ceil(count / 2);
-      const size = count * 2;
-      rounds.push(Array.from({ length: count }, () => ({ home: null, away: null, label: labelFor(size) })));
-    }
-    return rounds;
-  }, [standings, qty]);
+  if (tournament.teams.length < 4) {
+    return <EmptyState title="Times insuficientes" message="Cadastre pelo menos 4 times para o mata-mata." />;
+  }
+  if (!complete) {
+    return (
+      <EmptyState
+        title="Fase de grupos em andamento"
+        message={
+          total === 0
+            ? 'Gere a tabela na aba "Partidas" e conclua todos os jogos para liberar o mata-mata.'
+            : `Ainda faltam ${total - done} jogo(s) para concluir a fase de todos contra todos.`
+        }
+      />
+    );
+  }
 
-  if (standings.length < 2) return <EmptyState title="Times insuficientes" message="Cadastre pelo menos 2 times." />;
+  const [s1, s2, s3, s4] = standings;
+  const semis = [
+    { home: s1, away: s4, label: "Semifinal 1" },
+    { home: s2, away: s3, label: "Semifinal 2" },
+  ];
 
   return (
     <div className="space-y-6">
       <SectionHeader
         title="Mata-mata"
-        subtitle="Chaveamento a partir da classificação atual"
-        action={
-          <Select value={qty} onChange={(e) => setQty(Number(e.target.value))} className="w-auto">
-            {[2, 4, 8, 16].filter((n) => n <= standings.length).map((n) => (
-              <option key={n} value={n}>{n} times</option>
-            ))}
-          </Select>
-        }
+        subtitle="Os 4 melhores da fase de todos contra todos: 1º × 4º e 2º × 3º"
       />
 
       <div className="overflow-x-auto">
-        <div className="flex gap-6 min-w-max pb-4">
-          {bracket.map((round, ri) => (
-            <div key={ri} className="flex flex-col justify-around gap-4 min-w-[220px]">
-              <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold text-center">
-                {round[0]?.label}
+        <div className="flex gap-8 min-w-max pb-4 items-center">
+          <div className="flex flex-col gap-6 min-w-[240px]">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground font-bold text-center">Semifinais</div>
+            {semis.map((m, i) => (
+              <Card key={i} className="p-3 space-y-2">
+                <div className="text-[10px] text-muted-foreground font-semibold">{m.label}</div>
+                <div className="px-2 py-2 rounded-md bg-secondary text-sm flex items-center gap-2">
+                  <span className="w-6 h-6 rounded bg-gradient-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                    {standings.indexOf(m.home) + 1}
+                  </span>
+                  <span className="font-semibold truncate">{m.home.team.name}</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground text-center">vs</div>
+                <div className="px-2 py-2 rounded-md bg-secondary text-sm flex items-center gap-2">
+                  <span className="w-6 h-6 rounded bg-secondary-foreground/10 text-xs font-bold flex items-center justify-center">
+                    {standings.indexOf(m.away) + 1}
+                  </span>
+                  <span className="font-semibold truncate">{m.away.team.name}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          <div className="flex flex-col justify-center min-w-[240px]">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground font-bold text-center mb-3">Final</div>
+            <Card className="p-4 space-y-2 shadow-glow ring-1 ring-primary/40">
+              <div className="text-[10px] text-accent font-semibold flex items-center gap-1">🏆 Grande Final</div>
+              <div className="px-2 py-2 rounded-md bg-secondary text-sm text-muted-foreground italic">
+                Vencedor Semifinal 1
               </div>
-              {round.map((m, mi) => (
-                <Card key={mi} className="p-3 space-y-2">
-                  <div className="px-2 py-1.5 rounded-md bg-secondary text-sm truncate">
-                    {m.home || <span className="text-muted-foreground italic">A definir</span>}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground text-center">vs</div>
-                  <div className="px-2 py-1.5 rounded-md bg-secondary text-sm truncate">
-                    {m.away || <span className="text-muted-foreground italic">A definir</span>}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ))}
+              <div className="text-[10px] text-muted-foreground text-center">vs</div>
+              <div className="px-2 py-2 rounded-md bg-secondary text-sm text-muted-foreground italic">
+                Vencedor Semifinal 2
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
 
 function labelFor(n: number): string {
   if (n === 2) return "Final";
