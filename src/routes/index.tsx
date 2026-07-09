@@ -6,6 +6,7 @@ import {
   type PlayerLimit,
   type Team,
   type Tournament,
+  type Match,
 } from "@/lib/futsal-store";
 
 export const Route = createFileRoute("/")({
