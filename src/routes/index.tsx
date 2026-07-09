@@ -388,118 +388,210 @@ function PlayersView({ store, tournament }: { store: ReturnType<typeof useFutsal
 /* ---------- Matches ---------- */
 
 function MatchesView({ store, tournament }: { store: ReturnType<typeof useFutsalStore>; tournament: Tournament }) {
-  const [homeId, setHomeId] = useState(tournament.teams[0]?.id || "");
-  const [awayId, setAwayId] = useState(tournament.teams[1]?.id || "");
-  const [hg, setHg] = useState("0");
-  const [ag, setAg] = useState("0");
-  const [scorers, setScorers] = useState<{ playerId: string; teamId: string }[]>([]);
-
-  const home = tournament.teams.find((t) => t.id === homeId);
-  const away = tournament.teams.find((t) => t.id === awayId);
-
-  const nameOf = (teamId: string, pid: string) =>
-    tournament.teams.find((t) => t.id === teamId)?.players.find((p) => p.id === pid)?.name || "?";
-
   if (tournament.teams.length < 2) {
-    return <EmptyState title="Cadastre ao menos 2 times" message="Adicione times para registrar partidas." />;
+    return <EmptyState title="Cadastre ao menos 2 times" message="Adicione times para gerar a tabela de jogos." />;
   }
+
+  const grouped = useMemo(() => {
+    const map = new Map<number, Match[]>();
+    tournament.matches.forEach((m) => {
+      if (!map.has(m.round)) map.set(m.round, []);
+      map.get(m.round)!.push(m);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+  }, [tournament.matches]);
+
+  const total = tournament.matches.length;
+  const done = tournament.matches.filter((m) => m.played).length;
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Partidas" subtitle="Registre resultados e gols" />
-
-      <Card className="p-4 sm:p-6 space-y-4">
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] items-center">
-          <div>
-            <label className="text-xs text-muted-foreground">Mandante</label>
-            <Select value={homeId} onChange={(e) => setHomeId(e.target.value)}>
-              {tournament.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </Select>
-            <Input type="number" min="0" value={hg} onChange={(e) => setHg(e.target.value)} className="mt-2 text-center text-2xl font-bold" />
+      <SectionHeader
+        title="Partidas"
+        subtitle={total > 0 ? `${done}/${total} jogos concluídos` : "Todos contra todos"}
+        action={
+          <div className="flex gap-2">
+            {total === 0 ? (
+              <Button onClick={() => store.generateSchedule(tournament.id)}>Gerar tabela</Button>
+            ) : (
+              <Button variant="danger" onClick={() => {
+                if (confirm("Regenerar a tabela? Todos os resultados e gols serão apagados.")) {
+                  store.generateSchedule(tournament.id);
+                }
+              }}>Regenerar</Button>
+            )}
           </div>
-          <div className="text-2xl font-bold text-muted-foreground text-center pt-6">×</div>
-          <div>
-            <label className="text-xs text-muted-foreground">Visitante</label>
-            <Select value={awayId} onChange={(e) => setAwayId(e.target.value)}>
-              {tournament.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </Select>
-            <Input type="number" min="0" value={ag} onChange={(e) => setAg(e.target.value)} className="mt-2 text-center text-2xl font-bold" />
-          </div>
-        </div>
+        }
+      />
 
-        <div>
-          <label className="text-xs text-muted-foreground">Marcadores (opcional — clique para adicionar gol)</label>
-          <div className="grid gap-3 sm:grid-cols-2 mt-2">
-            {[home, away].filter(Boolean).map((t) => (
-              <div key={t!.id} className="p-3 rounded-lg bg-secondary">
-                <div className="text-sm font-semibold mb-2">{t!.name}</div>
-                <div className="flex flex-wrap gap-1">
-                  {t!.players.length === 0 && <span className="text-xs text-muted-foreground">Sem jogadores</span>}
-                  {t!.players.map((p) => {
-                    const count = scorers.filter((s) => s.playerId === p.id).length;
-                    return (
-                      <button key={p.id} type="button"
-                        onClick={() => setScorers([...scorers, { playerId: p.id, teamId: t!.id }])}
-                        className="px-2 py-1 rounded-md bg-background text-xs hover:bg-primary/20 transition">
-                        {p.number} {p.name}{count > 0 && <span className="ml-1 text-primary font-bold">×{count}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-          {scorers.length > 0 && (
-            <button onClick={() => setScorers([])} className="text-xs text-muted-foreground mt-2 hover:text-foreground">Limpar marcadores</button>
-          )}
-        </div>
+      {total === 0 && (
+        <EmptyState
+          title="Tabela não gerada"
+          message='Clique em "Gerar tabela" para criar automaticamente todos os confrontos (todos contra todos), organizados sem que um time jogue duas partidas seguidas.'
+        />
+      )}
 
-        <Button
-          disabled={homeId === awayId}
-          onClick={() => {
-            if (homeId === awayId) return;
-            store.addMatch(tournament.id, homeId, awayId, Number(hg), Number(ag), scorers);
-            setHg("0"); setAg("0"); setScorers([]);
-          }}
-          className="w-full"
-        >
-          Registrar partida
-        </Button>
-        {homeId === awayId && <p className="text-xs text-destructive">Selecione times diferentes</p>}
-      </Card>
-
-      <Card className="p-4 sm:p-6">
-        <h3 className="font-semibold mb-3">Histórico</h3>
-        {tournament.matches.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma partida registrada.</p>
-        ) : (
-          <div className="space-y-2">
-            {[...tournament.matches].reverse().map((m) => {
-              const h = tournament.teams.find((t) => t.id === m.homeId);
-              const a = tournament.teams.find((t) => t.id === m.awayId);
-              if (!h || !a) return null;
-              return (
-                <div key={m.id} className="p-3 rounded-lg bg-secondary flex items-center gap-3">
-                  <div className="flex-1 text-right">
-                    <div className="font-semibold">{h.name}</div>
-                  </div>
-                  <div className="font-bold text-lg tabular-nums px-3 py-1 rounded-lg bg-background">
-                    {m.homeGoals} <span className="text-muted-foreground">:</span> {m.awayGoals}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold">{a.name}</div>
-                  </div>
-                  <button onClick={() => { if (confirm("Excluir partida?")) store.deleteMatch(tournament.id, m.id); }}
-                    className="text-destructive hover:bg-destructive/10 w-8 h-8 rounded-lg">✕</button>
-                </div>
-              );
-            })}
+      <div className="space-y-6">
+        {grouped.map(([round, matches]) => (
+          <div key={round}>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Rodada {round}</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+            <div className="space-y-2">
+              {matches.map((m) => (
+                <MatchRow key={m.id} match={m} tournament={tournament} store={store} />
+              ))}
+            </div>
           </div>
-        )}
-      </Card>
+        ))}
+      </div>
     </div>
   );
 }
+
+function MatchRow({ match, tournament, store }: { match: Match; tournament: Tournament; store: ReturnType<typeof useFutsalStore> }) {
+  const h = tournament.teams.find((t) => t.id === match.homeId);
+  const a = tournament.teams.find((t) => t.id === match.awayId);
+  const [open, setOpen] = useState(false);
+  const [hg, setHg] = useState(match.homeGoals);
+  const [ag, setAg] = useState(match.awayGoals);
+  const initialHome = match.scorers.filter((s) => s.teamId === match.homeId).map((s) => s.playerId);
+  const initialAway = match.scorers.filter((s) => s.teamId === match.awayId).map((s) => s.playerId);
+  const [homeScorers, setHomeScorers] = useState<string[]>(initialHome);
+  const [awayScorers, setAwayScorers] = useState<string[]>(initialAway);
+
+  if (!h || !a) return null;
+
+  const resize = (arr: string[], size: number) => {
+    if (size > arr.length) return [...arr, ...Array(size - arr.length).fill("")];
+    return arr.slice(0, size);
+  };
+
+  const canSubmit =
+    hg >= 0 && ag >= 0 &&
+    (hg === 0 || (h.players.length > 0 && homeScorers.length === hg && homeScorers.every(Boolean))) &&
+    (ag === 0 || (a.players.length > 0 && awayScorers.length === ag && awayScorers.every(Boolean)));
+
+  return (
+    <Card className={`p-3 ${match.played ? "border-primary/40" : ""}`}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 text-left"
+      >
+        <div className="flex-1 flex items-center gap-2 justify-end min-w-0">
+          <span className="font-semibold truncate">{h.name}</span>
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: h.color }} />
+        </div>
+        <div className={`font-bold text-lg tabular-nums px-3 py-1 rounded-lg min-w-[70px] text-center ${match.played ? "bg-gradient-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>
+          {match.played ? `${match.homeGoals} : ${match.awayGoals}` : "vs"}
+        </div>
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: a.color }} />
+          <span className="font-semibold truncate">{a.name}</span>
+        </div>
+      </button>
+
+      {open && (
+        <div className="mt-4 pt-4 border-t border-border space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <ScorerBlock
+              team={h}
+              goals={hg}
+              setGoals={(v) => { setHg(v); setHomeScorers(resize(homeScorers, v)); }}
+              scorers={homeScorers}
+              setScorers={setHomeScorers}
+            />
+            <ScorerBlock
+              team={a}
+              goals={ag}
+              setGoals={(v) => { setAg(v); setAwayScorers(resize(awayScorers, v)); }}
+              scorers={awayScorers}
+              setScorers={setAwayScorers}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={!canSubmit}
+              onClick={() => {
+                const scorers = [
+                  ...homeScorers.map((pid) => ({ playerId: pid, teamId: h.id })),
+                  ...awayScorers.map((pid) => ({ playerId: pid, teamId: a.id })),
+                ];
+                store.recordResult(tournament.id, match.id, hg, ag, scorers);
+                setOpen(false);
+              }}
+            >
+              {match.played ? "Atualizar resultado" : "Salvar resultado"}
+            </Button>
+            {match.played && (
+              <Button variant="danger" onClick={() => {
+                if (confirm("Desfazer resultado?")) {
+                  store.resetMatch(tournament.id, match.id);
+                  setHg(0); setAg(0); setHomeScorers([]); setAwayScorers([]);
+                }
+              }}>Desfazer</Button>
+            )}
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+          </div>
+          {!canSubmit && (hg > 0 || ag > 0) && (
+            <p className="text-xs text-warning">Selecione o jogador que marcou cada gol.</p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ScorerBlock({
+  team, goals, setGoals, scorers, setScorers,
+}: {
+  team: Team; goals: number; setGoals: (n: number) => void;
+  scorers: string[]; setScorers: (s: string[]) => void;
+}) {
+  return (
+    <div className="p-3 rounded-lg bg-secondary space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
+        <span className="text-sm font-semibold truncate flex-1">{team.name}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => setGoals(Math.max(0, goals - 1))}
+          className="w-8 h-8 rounded-lg bg-background font-bold hover:bg-destructive/20">−</button>
+        <div className="flex-1 text-center text-2xl font-bold tabular-nums">{goals}</div>
+        <button type="button" onClick={() => setGoals(goals + 1)}
+          className="w-8 h-8 rounded-lg bg-background font-bold hover:bg-primary/20">+</button>
+      </div>
+      {goals > 0 && (
+        <div className="space-y-1.5">
+          {team.players.length === 0 ? (
+            <p className="text-xs text-destructive">Cadastre jogadores neste time.</p>
+          ) : (
+            Array.from({ length: goals }).map((_, i) => (
+              <Select
+                key={i}
+                value={scorers[i] || ""}
+                onChange={(e) => {
+                  const next = [...scorers];
+                  next[i] = e.target.value;
+                  setScorers(next);
+                }}
+                className="text-xs"
+              >
+                <option value="">Gol {i + 1} — selecione o jogador</option>
+                {team.players.map((p) => (
+                  <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+                ))}
+              </Select>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 /* ---------- Standings ---------- */
 
