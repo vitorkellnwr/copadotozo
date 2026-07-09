@@ -766,11 +766,3 @@ function BracketView({ tournament }: { tournament: Tournament }) {
   );
 }
 
-
-function labelFor(n: number): string {
-  if (n === 2) return "Final";
-  if (n === 4) return "Semifinal";
-  if (n === 8) return "Quartas";
-  if (n === 16) return "Oitavas";
-  return `Fase de ${n}`;
-}
