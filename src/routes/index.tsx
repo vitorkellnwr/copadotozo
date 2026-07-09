@@ -15,7 +15,7 @@ export const Route = createFileRoute("/")({
       { title: "FutsalPro — Gerenciador de Torneios de Futsal" },
       { name: "description", content: "Organize ligas, times, jogadores, partidas, classificação, artilharia e mata-mata de futsal em um só lugar." },
       { property: "og:title", content: "FutsalPro — Gerenciador de Torneios de Futsal" },
-      { property: "og:description", content: "Ligas, classificação, artilharia e mata-mata em uma interface moderna." },
+      { property: "og:description", content: "Organize ligas, times, jogadores, partidas, classificação, artilharia e mata-mata de futsal em um só lugar." },
     ],
   }),
   component: App,
